@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Background Animation</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-blur"></div>
+    <div class="background">
+        <div class="drop" style="left: 10%; width: 10px; height: 10px; animation-delay: 0.5s;"></div>
+        <div class="drop" style="left: 30%; width: 8px; height: 8px; animation-delay: 1.2s;"></div>
+        <div class="drop" style="left: 50%; width: 12px; height: 12px; animation-delay: 0.2s;"></div>
+        <div class="drop" style="left: 70%; width: 9px; height: 9px; animation-delay: 1.8s;"></div>
+        <div class="drop" style="left: 90%; width: 11px; height: 11px; animation-delay: 0.8s;"></div>
+    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" version="1.1" style="display: none">
+        <defs>
+            <filter id="water-effect">
+                <feTurbulence type="fractalNoise" baseFrequency="0.01 0.04" numOctaves="3" result="noise">
+                    <animate attributeName="baseFrequency" values="0.01 0.04;0.02 0.08;0.01 0.04" dur="15s" repeatCount="indefinite" />
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="50" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+        </defs>
+    </svg>
+</body>
+</html>

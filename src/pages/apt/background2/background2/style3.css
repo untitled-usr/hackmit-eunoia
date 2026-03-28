@@ -1,0 +1,30 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.background {
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    width: 90%;
+    height: 90%;
+    background-image: url('../../../../assets/backgrounds/sea.jpg');
+    background-size: cover;
+    background-position: center;
+    filter: url(#sea-effect) contrast(1.2) saturate(1.5);
+}
+
+.background-blur {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: url('../../../../assets/backgrounds/sea.jpg');
+    background-size: cover;
+    background-position: center;
+    filter: blur(10px);
+    transform: scale(1.1);
+}

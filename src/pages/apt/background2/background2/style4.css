@@ -1,0 +1,45 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.paper-container {
+    width: 100%;
+    height: 100%;
+    background-image: url('../../../../assets/backgrounds/diary.jpg');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.stain {
+    position: absolute;
+    width: 0;
+    height: 0;
+    background-color: rgba(100, 80, 50, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: stain-effect 5s infinite;
+}
+
+@keyframes stain-effect {
+    0% {
+        width: 0;
+        height: 0;
+        opacity: 0;
+    }
+    50% {
+        width: 200px;
+        height: 200px;
+        opacity: 1;
+        backdrop-filter: brightness(80%) saturate(120%);
+    }
+    100% {
+        width: 200px;
+        height: 200px;
+        opacity: 0;
+    }
+}
