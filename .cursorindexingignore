@@ -1,0 +1,20 @@
+# Monorepo heavy outputs
+**/node_modules/**
+**/target/**
+**/build/**
+**/dist/**
+**/.next/**
+**/.svelte-kit/**
+**/.venv/**
+**/__pycache__/**
+**/.pytest_cache/**
+**/.mypy_cache/**
+
+# Known large generated/runtime trees
+apps/open-webui/backend/data/**
+apps/open-webui/backend/uploads/**
+apps/vocechat-server/target/**
+
+# Exclude entire heavy apps from Cursor indexing in monorepo root
+apps/open-webui/**
+apps/vocechat-server/**

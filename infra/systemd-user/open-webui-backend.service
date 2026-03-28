@@ -1,0 +1,13 @@
+[Unit]
+Description=Open WebUI Backend (DevStack)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/devstack/workspace
+ExecStart=%h/devstack/workspace/scripts/run-open-webui-backend.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

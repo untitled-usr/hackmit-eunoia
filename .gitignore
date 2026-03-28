@@ -1,0 +1,20 @@
+# local temp
+*.tmp
+*.log
+
+# local env overrides
+env/local/
+
+# service/runtime artifacts if generated in workspace
+**/.venv/
+**/venv/
+**/node_modules/
+**/dist/
+**/build/
+**/target/
+**/.next/
+**/.svelte-kit/
+**/.pytest_cache/
+**/.mypy_cache/
+apps/open-webui/backend/data/
+apps/open-webui/backend/uploads/

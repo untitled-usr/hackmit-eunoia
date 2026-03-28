@@ -1,0 +1,44 @@
+{
+  "folders": [
+    { "path": "docs" },
+    { "path": "services" },
+    { "path": "scripts" },
+    { "path": "infra" },
+    { "path": "env" },
+    { "path": "project_docs" },
+    { "path": "apps/vocechat-web" }
+  ],
+  "settings": {
+    "files.watcherExclude": {
+      "**/.git/**": true,
+      "**/node_modules/**": true,
+      "**/target/**": true,
+      "**/dist/**": true,
+      "**/build/**": true,
+      "**/.next/**": true,
+      "**/.svelte-kit/**": true,
+      "**/.venv/**": true,
+      "**/__pycache__/**": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/target": true,
+      "**/dist": true,
+      "**/build": true,
+      "**/.next": true,
+      "**/.svelte-kit": true,
+      "**/.venv": true,
+      "**/__pycache__": true
+    },
+    "git.enabled": false,
+    "git.autoRepositoryDetection": false,
+    "git.autofetch": false,
+    "git.autorefresh": false,
+    "npm.autoDetect": "off",
+    "search.followSymlinks": false,
+    "typescript.disableAutomaticTypeAcquisition": true,
+    "python.analysis.indexing": false,
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "cursor-retrieval.canAttemptGithubLogin": false
+  }
+}
