@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate OpenAPI tags against gap-task-table.md prefix rules and main.py allowlist.
+"""Validate OpenAPI tags against prefix rules and main.py allowlist.
 
 Run after: python3 scripts/export_openapi.py
 """
@@ -12,37 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-GAP = ROOT / "gap-task-table.md"
 OPENAPI = ROOT / "openapi.json"
-
-
-def _parse_gap_router_tags(md: str) -> dict[str, str]:
-    """Map target_router_file basename -> unique target_tag (from table rows)."""
-    per_file: dict[str, set[str]] = {}
-    for line in md.splitlines():
-        if not line.startswith("|"):
-            continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) < 8 or parts[1] in ("id", "---", ""):
-            continue
-        # | id | method | path | subdomain | target_router_file | target_tag | ...
-        try:
-            router_cell = parts[5]
-            tag_cell = parts[6]
-        except IndexError:
-            continue
-        if "/" not in router_cell or not tag_cell:
-            continue
-        base = router_cell.split("/")[-1].strip()
-        if not base.endswith(".py"):
-            continue
-        per_file.setdefault(base, set()).add(tag_cell)
-    out: dict[str, str] = {}
-    for base, tags in per_file.items():
-        if len(tags) != 1:
-            raise SystemExit(f"gap-task-table: {base} must map to exactly one tag, got {tags}")
-        out[base] = next(iter(tags))
-    return out
 
 
 # Longest-prefix wins. Paths are FastAPI paths (include_router prefixes already applied).
@@ -91,10 +61,6 @@ def main() -> int:
         return 2
     spec = json.loads(OPENAPI.read_text(encoding="utf-8"))
     paths = spec.get("paths") or {}
-
-    gap_map = _parse_gap_router_tags(GAP.read_text(encoding="utf-8"))
-    if not gap_map:
-        print("warning: no gap router rows parsed from gap-task-table.md", file=sys.stderr)
 
     violations: list[str] = []
     unknown_tag_ops: list[str] = []

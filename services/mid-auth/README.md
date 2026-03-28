@@ -44,46 +44,15 @@ MID_AUTH_TLS_KEYFILE=/path/to/tls.key \
 - **运行时**：服务监听后访问 `http://127.0.0.1:19000/openapi.json` 或经网关的 `api.dev.local/openapi.json`。
 - **运行时（HTTPS）**：启用 TLS 后访问 `https://127.0.0.1:19000/openapi.json`。
 
-## Curl E2E（用户视角冒烟）
+## Quick Verification
 
-仓库根目录脚本 [`scripts/e2e-mid-auth-curl.sh`](../../scripts/e2e-mid-auth-curl.sh) 用 **curl + cookie jar** 模拟浏览器：公共接口 → 注册/登录负例 → 注册成功 → 会话与 `/me/*` 代表路由 → 改密与登出。与 `tests/` 里基于 `TestClient` 的 pytest 冒烟**互补**（pytest 常用 sqlite + stub 客户端，速度快；curl 走真实 HTTP 与会话 Cookie）。
-
-另可使用 **[`tests/test_live_tcp_e2e.py`](tests/test_live_tcp_e2e.py)**：通过 **httpx 真实 TCP** 连接 `MID_AUTH_LIVE_BASE_URL`（默认 `http://127.0.0.1:19000`）做健康检查与注册/登录/资料流；若端口无服务则**整模块跳过**。可选 `MID_AUTH_LIVE_FULL_SCRIPT=1` 在 pytest 内 **subprocess** 调用上述 curl 脚本，与 shell 用例完全一致。
+服务启动后可先做基础健康检查：
 
 ```bash
-pytest tests/test_live_tcp_e2e.py -v
-MID_AUTH_LIVE_FULL_SCRIPT=1 pytest tests/test_live_tcp_e2e.py::test_e2e_curl_script_full_tcp -v
+curl -sS http://127.0.0.1:19000/healthz
 ```
 
-**前置**：数据库已迁移（[`scripts/bootstrap-mid-auth-db.sh`](../../scripts/bootstrap-mid-auth-db.sh)）、mid-auth 已监听（[`scripts/run-mid-auth.sh`](../../scripts/run-mid-auth.sh)）。全栈 Runbook 见 workspace 根目录 [README.md](../../README.md) 的 *Mid-Auth full-stack runbook*。
-
-**推荐**：在 state 的 `mid-auth` `.env` 中设 `MID_AUTH_PROVISION_USE_STUB=true` 做快速 E2E（无需三后端）；真实供给时需三后端就绪，否则注册会失败。
-
-```bash
-BASE_URL=http://127.0.0.1:19000 "${DEVSTACK_WORKSPACE_ROOT:-/root/devstack/workspace}/scripts/e2e-mid-auth-curl.sh"
-```
-
-| 环境变量 | 默认 | 说明 |
-|----------|------|------|
-| `BASE_URL` | `http://127.0.0.1:19000` | mid-auth 根 URL |
-| `MID_AUTH_E2E_SOFT_DOWNSTREAM` | `1` | BFF 返回 502/503/504 时仅告警不失败（下游未起时） |
-| `MID_AUTH_E2E_STRICT_DOWNSTREAM` | `0` | 设为 `1` 时上述 BFF 必须为 **200**（与 soft 互斥） |
-
-说明：若未配置 `MID_AUTH_OPEN_WEBUI_BASE_URL`，匿名访问 workbench 会得到 **503**（后端未配置），脚本对此与 **401** 一并视为可接受的负向结果。脚本会断言已移除的 `/admin/*` 路径返回 **404**。
-
-**CI 示例**（在 job 中已启动 mid-auth 且可选启动三下游之后）：
-
-```bash
-BASE_URL=http://127.0.0.1:19000 MID_AUTH_E2E_SOFT_DOWNSTREAM="${MID_AUTH_E2E_SOFT_DOWNSTREAM:-1}" \
-  "${DEVSTACK_WORKSPACE_ROOT:-/root/devstack/workspace}/scripts/e2e-mid-auth-curl.sh"
-```
-
-全栈严格模式（要求 BFF **200**）：
-
-```bash
-BASE_URL=http://127.0.0.1:19000 MID_AUTH_E2E_STRICT_DOWNSTREAM=1 \
-  "${DEVSTACK_WORKSPACE_ROOT:-/root/devstack/workspace}/scripts/e2e-mid-auth-curl.sh"
-```
+完整启动顺序与联调说明见 workspace 根目录 [README.md](../../README.md) 的 *Mid-Auth full-stack runbook*。
 
 ## IM / VoceChat 平台 API 前缀（规范化）
 

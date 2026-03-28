@@ -88,7 +88,7 @@ Add host entries (example): `127.0.0.1 owui.dev.local memos.dev.local chat.dev.l
 2. `scripts/bootstrap-mid-auth-db.sh`
 3. Backends: Open WebUI → Memos → VoceChat (may be started in parallel once healthy; registration rolls back partial downstream work on failure).
 4. `scripts/run-mid-auth.sh` on port `19000`.
-5. Optional HTTP smoke (register → login → sample BFF): `BASE_URL=http://127.0.0.1:19000 scripts/e2e-mid-auth-curl.sh` (see `services/mid-auth/README.md` **Curl E2E**).
+5. Optional quick check: `curl -sS http://127.0.0.1:19000/healthz`.
 
 ### `api.dev.local` and session cookies
 

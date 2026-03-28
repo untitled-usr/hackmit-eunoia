@@ -1,4 +1,4 @@
-"""Contract: exported OpenAPI matches gap-task-table prefix/tag expectations."""
+"""Contract: exported OpenAPI matches prefix/tag expectations."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def _env() -> None:
     os.environ.setdefault("MID_AUTH_PROVISION_USE_STUB", "true")
 
 
-def test_export_openapi_and_gap_contract_audit() -> None:
+def test_export_openapi_and_contract_audit() -> None:
     subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "export_openapi.py")],
         cwd=str(ROOT),

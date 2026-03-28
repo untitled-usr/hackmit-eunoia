@@ -6,7 +6,7 @@
 | **规范** | OpenAPI 3.0（OAS3） |
 | **机器可读规格** | 同目录 [`vocechat_openapi.json`](./vocechat_openapi.json)（由**当前代码**运行的实例 `GET /api/spec` 导出后，再合并 DevStack 默认 `servers`） |
 | **导出日期** | 2026-03-22 |
-| **常用 base URL** | `http://localhost:7922`（DevStack）、`http://127.0.0.1:3011`（`config/smoke.toml`）— 下文示例端口可按环境替换 |
+| **常用 base URL** | `http://localhost:7922`（DevStack）、`http://127.0.0.1:3011`（本地独立实例示例）— 下文示例端口可按环境替换 |
 
 运行服务后，浏览器可打开：
 
@@ -70,9 +70,9 @@ curl -sS -X POST "http://127.0.0.1:3011/api/user/register" \
 
 ## 本地冒烟配置（可选）
 
-- 配置文件：`apps/vocechat-server/config/smoke.toml`（默认监听 `127.0.0.1:3011`）
-- 启动：`cd apps/vocechat-server && cargo run -- config/smoke.toml`
-- 数据目录：`./data-smoke-docgen/`（已在 `.gitignore` 中忽略）。若迁移报错「previously applied but has been modified」，删除该目录后重启即可重新初始化。
+- 可准备独立配置文件（例如 `local-docgen.toml`），监听 `127.0.0.1:3011` 以免与默认端口冲突。
+- 启动：`cd apps/vocechat-server && cargo run -- local-docgen.toml`
+- 数据目录建议使用独立目录（例如 `./data-docgen/`）。若迁移报错「previously applied but has been modified」，删除该目录后重启即可重新初始化。
 
 ---
 
@@ -80,7 +80,7 @@ curl -sS -X POST "http://127.0.0.1:3011/api/user/register" \
 
 `main.rs` 在成功读取 TOML 后执行 `envy::prefixed("VOCECHAT_").from_env::<EnvironmentVars>()`，失败则 **`unwrap_or_default()`** 整表回退默认。
 
-`EnvironmentVars` 当前字段为：`data_dir`（可选）以及 **`fcm_project_id`、`fcm_private_key`、`fcm_client_email`、`token_uri`**（均为 `String`，默认合并值为空字符串）。若只设置部分变量导致 **整次**反序列化失败，则 **`data_dir` 也不会从环境变量合并**。需要可靠覆盖 `data_dir` 时，优先使用独立配置文件（如 `smoke.toml`），或为上述字段一并提供合法取值。
+`EnvironmentVars` 当前字段为：`data_dir`（可选）以及 **`fcm_project_id`、`fcm_private_key`、`fcm_client_email`、`token_uri`**（均为 `String`，默认合并值为空字符串）。若只设置部分变量导致 **整次**反序列化失败，则 **`data_dir` 也不会从环境变量合并**。需要可靠覆盖 `data_dir` 时，优先使用独立配置文件，或为上述字段一并提供合法取值。
 
 ---
 
@@ -111,7 +111,7 @@ curl -sS -X POST "http://127.0.0.1:3011/api/user/register" \
 
 ## 冒烟测试结果摘要（2026-03-22）
 
-在 `config/smoke.toml` 启动的实例上验证：
+在本地独立实例（`127.0.0.1:3011`）上验证：
 
 | 检查项 | 结果 |
 |--------|------|
