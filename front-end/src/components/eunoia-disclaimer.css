@@ -1,0 +1,135 @@
+.eunoia-disclaimer-bar {
+  position: fixed;
+  z-index: 60;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(96px + 16px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.eunoia-disclaimer-bar > * {
+  pointer-events: auto;
+}
+
+.eunoia-disclaimer-trigger {
+  border: 0;
+  background: transparent;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: rgba(26, 60, 77, 0.65);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.eunoia-disclaimer-trigger:hover {
+  color: rgba(26, 60, 77, 0.9);
+}
+
+.eunoia-disclaimer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 215;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  padding-left: max(16px, calc(96px + 16px));
+  background: rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.eunoia-disclaimer-dialog {
+  width: min(720px, 100%);
+  max-height: min(85vh, 800px);
+  overflow: auto;
+  padding: 1.5rem 1.35rem 1.75rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  color: #1e293b;
+  text-align: left;
+}
+
+.eunoia-disclaimer-dialog h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+.eunoia-disclaimer-dialog h2:first-of-type {
+  margin-top: 0;
+}
+
+.eunoia-disclaimer-dialog .eunoia-disclaimer-meta {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 1rem;
+}
+
+.eunoia-disclaimer-dialog p {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  margin: 0 0 0.65rem;
+}
+
+.eunoia-disclaimer-dialog ul {
+  margin: 0 0 0.65rem;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.eunoia-disclaimer-dialog li {
+  margin-bottom: 0.35rem;
+}
+
+.eunoia-disclaimer-dialog .eunoia-disclaimer-closing {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #0f172a;
+}
+
+.eunoia-disclaimer-close {
+  margin-top: 1.25rem;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(241, 245, 249, 0.9);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+}
+
+.eunoia-disclaimer-close:hover {
+  background: #e2e8f0;
+}
+
+@media (max-width: 640px) {
+  .eunoia-disclaimer-bar {
+    padding-left: 16px;
+  }
+
+  .eunoia-disclaimer-backdrop {
+    padding-left: 16px;
+  }
+}
