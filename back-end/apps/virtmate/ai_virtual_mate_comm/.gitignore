@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+data/cache/server_audio/
+data/cache/server_media/
+data/db/cs_sessions.db
+

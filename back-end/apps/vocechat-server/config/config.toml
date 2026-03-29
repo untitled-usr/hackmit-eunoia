@@ -1,0 +1,36 @@
+# webclient_url = "https://github.com/Privoce/vocechat-web/releases/latest/download"
+webclient_url = "https://s.voce.chat/web_client/v0.3.x"
+
+[system]
+data_dir = "./data"
+# disable_license = true
+
+[network]
+bind = "0.0.0.0:7922"
+# domain = "chat.privoce.com"
+frontend_url = "http://1.2.3.4:4000"
+
+# [network.tls]
+# type = "self_signed"
+
+# [network.tls]
+# type = "certificate"
+# cert = "...."
+# key = "...."
+# path = "./cert/"
+
+# [network.tls]
+# type = "acme_http_01"
+# directory_url = "https://acme-v02.api.letsencrypt.org/directory"
+# http_bind = "0.0.0.0:80"
+# cache_path = "./data/cert"
+
+# [network.tls]
+# type = "acme_tls_alpn_01"
+# directory_url = "https://acme-v02.api.letsencrypt.org/directory"
+# cache_path = "./data/cert"
+
+#[[user]]
+#name = "Guest"
+#password = "123456"
+#email = "guest@voce.chat"

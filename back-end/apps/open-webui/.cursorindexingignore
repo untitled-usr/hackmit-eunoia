@@ -1,0 +1,15 @@
+# Dependencies and build outputs
+node_modules/
+build/
+.svelte-kit/
+.next/
+
+# Python environment and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+
+# Runtime/generated data
+backend/data/
+backend/uploads/

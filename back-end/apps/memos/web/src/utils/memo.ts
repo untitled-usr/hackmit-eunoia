@@ -1,0 +1,23 @@
+import { Visibility } from "@/types/proto/api/v1/memo_service_pb";
+
+export const convertVisibilityFromString = (visibility: string) => {
+  switch (visibility) {
+    case "PUBLIC":
+      return Visibility.PUBLIC;
+    case "PRIVATE":
+      return Visibility.PRIVATE;
+    default:
+      return Visibility.PRIVATE;
+  }
+};
+
+export const convertVisibilityToString = (visibility: Visibility) => {
+  switch (visibility) {
+    case Visibility.PUBLIC:
+      return "PUBLIC";
+    case Visibility.PRIVATE:
+      return "PRIVATE";
+    default:
+      return "PRIVATE";
+  }
+};

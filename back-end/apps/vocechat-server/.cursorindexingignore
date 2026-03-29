@@ -1,0 +1,7 @@
+# Rust build artifacts
+target/
+
+# Runtime artifacts
+data/
+data-smoke-docgen/
+debug.log

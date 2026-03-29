@@ -1,0 +1,2 @@
+DELETE FROM user_setting
+WHERE key = 'PERSONAL_ACCESS_TOKENS';

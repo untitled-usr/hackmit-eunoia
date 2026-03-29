@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+// Common API v1 types.
+//
+// Fork authentication (all memos.api.v1 services):
+// - Primary client auth is the "X-Acting-Uid" header (numeric user id). No AuthService or /api/v1/auth/*.
+// - Public RPCs that skip the header are listed in server/router/api/v1/acl_config.go.
+package memos.api.v1;
+
+option go_package = "gen/api/v1";
+
+enum State {
+  STATE_UNSPECIFIED = 0;
+  NORMAL = 1;
+  ARCHIVED = 2;
+}
+
+// Used internally for obfuscating the page token.
+message PageToken {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0;
+  ASC = 1;
+  DESC = 2;
+}

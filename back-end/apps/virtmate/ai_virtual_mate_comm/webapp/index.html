@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>VirtMate C/S</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8; --brand:#3b82f6; --border:#1f2937; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:radial-gradient(circle at 10% 20%, #1e293b, var(--bg)); color:var(--text); font-family:"Microsoft YaHei","PingFang SC",sans-serif; }
+    .layout { max-width:1200px; margin:0 auto; padding:16px; }
+    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px 16px; border:1px solid var(--border); border-radius:12px; background:rgba(17,24,39,.8); margin-bottom:12px; flex-wrap:wrap; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; }
+    .tab { border:1px solid var(--border); background:#0b1220; color:var(--text); border-radius:999px; padding:8px 12px; cursor:pointer; }
+    .tab.active { background:var(--brand); border-color:var(--brand); }
+    .panel { border:1px solid var(--border); background:rgba(17,24,39,.82); border-radius:12px; padding:14px; }
+    .muted { color:var(--muted); font-size:13px; }
+    .chat-list { height:420px; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:8px; background:#090f1a; margin-bottom:10px; }
+    .chat-item { margin-bottom:8px; padding:8px 10px; border-radius:8px; border:1px solid #1f2a3a; white-space:pre-wrap; }
+    .chat-item.user { background:#0b223f; }
+    .chat-item.assistant { background:#102216; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .row + .row { margin-top:8px; }
+    input, textarea, select, button { border:1px solid var(--border); border-radius:8px; background:#0b1220; color:var(--text); padding:8px 10px; font:inherit; }
+    button { cursor:pointer; }
+    button.primary { background:var(--brand); border-color:var(--brand); }
+    .grow { flex:1; min-width:120px; }
+    iframe { width:100%; height:560px; border:1px solid var(--border); border-radius:10px; background:#000; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width:900px) { .grid2 { grid-template-columns:1fr; } .chat-list { height:360px; } }
+  </style>
+</head>
+<body>
+  <div id="app" class="layout"></div>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script>
+    const { createApp, ref, reactive, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const tabs = [
+          { id: "chat", label: "聊天" },
+          { id: "voice", label: "语音" },
+          { id: "scene", label: "3D角色" },
+          { id: "settings", label: "会话 / 全局" }
+        ];
+        const tab = ref("chat");
+        const urlParams = new URLSearchParams(location.search);
+        const apiModeParam = (urlParams.get("api_mode") || "").trim().toLowerCase();
+        const apiPrefixParam = (urlParams.get("api_prefix") || "").trim();
+        const defaultApiBase = "/api";
+        const defaultMidAuthBase = "/me/virtmate";
+        const selectedApiBase = ref(defaultApiBase);
+        const useMidAuth = ref(false);
+        const wsState = ref("未连接");
+        const chatStatus = ref("idle");
+        const textInput = ref("");
+        const sessionId = ref(localStorage.getItem("virtmate_session_id") || "default");
+        const userId = ref(localStorage.getItem("virtmate_user_id") || "");
+        const modelId = ref(localStorage.getItem("virtmate_model_id") || "");
+        const conversationId = ref(localStorage.getItem("virtmate_conversation_id") || "");
+        const messages = ref([]);
+        const streamingAssistant = ref("");
+        const settings = reactive({
+          tts_engine: "云端edge-tts",
+          cam_permission: "关闭",
+          username: "",
+          mate_name: "",
+          prompt: ""
+        });
+        const globalConfig = reactive({
+          asr_engine: "faster_whisper_cuda",
+          asr_model: "large-v3",
+          asr_device: "cuda",
+          asr_compute_type: "float16",
+          asr_cuda_device_index: "0",
+          asr_disable_auto_fallback: "关闭",
+          asr_sensitivity: "中",
+          asr_voiceprint_switch: "关闭",
+          asr_voiceprint_threshold: "0.6",
+          tts_local_host: "127.0.0.1",
+          tts_gpt_sovits_port: "9880",
+          tts_cosyvoice_port: "9881",
+          tts_indextts_port: "9884",
+          tts_voxcpm_port: "9885",
+          tts_local_timeout_sec: "180",
+          tts_fallback_engine: "云端edge-tts",
+          tts_default_engine: "云端edge-tts"
+        });
+        const runtimeStatus = reactive({
+          gpu: { cuda_available: false, name: "", vram_total_mb: 0 },
+          asr: {},
+          tts: {},
+          global: {}
+        });
+        const ws = ref(null);
+        const recorder = ref(null);
+        const chunks = ref([]);
+        const recording = ref(false);
+        const voiceStatus = ref("");
+        const sceneType = ref("live2d");
+        const asrEngineOptions = ["faster_whisper_cuda", "sherpa_local"];
+        const asrModelOptions = ["large-v3", "distil-large-v3", "medium", "small", "base"];
+        const asrDeviceOptions = ["cuda", "cpu"];
+        const asrComputeTypeOptions = ["float16", "int8", "int8_float16", "float32"];
+        const asrCudaDeviceIndexOptions = ["0", "1", "2", "3", "4", "5", "6", "7"];
+        const voiceprintThresholdOptions = ["0.5", "0.6", "0.7", "0.8", "0.9"];
+        const localHostOptions = ["127.0.0.1", "localhost", "0.0.0.0"];
+        const gptSovitsPortOptions = ["9880", "9980", "17860"];
+        const cosyVoicePortOptions = ["9881", "9981", "17861"];
+        const indexTtsPortOptions = ["9884", "9984", "17864"];
+        const voxcpmPortOptions = ["9885", "9985", "17865"];
+        const ttsTimeoutOptions = ["60", "120", "180", "240", "300"];
+        const ttsEngineOptions = [
+          "关闭语音合成",
+          "云端edge-tts",
+          "云端Paddle-TTS",
+          "自定义API-TTS",
+          "本地GPT-SoVITS",
+          "本地CosyVoice",
+          "本地Index-TTS",
+          "本地VoxCPM",
+        ];
+
+        function normalizeBasePath(base, fallback) {
+          const raw = String(base || "").trim();
+          if (!raw) return fallback;
+          if (!raw.startsWith("/")) return "/" + raw.replace(/^\/+/, "");
+          return raw.replace(/\/+$/, "") || fallback;
+        }
+
+        function initApiBase() {
+          if (apiModeParam === "midauth") {
+            useMidAuth.value = true;
+            selectedApiBase.value = defaultMidAuthBase;
+            return;
+          }
+          if (apiModeParam === "direct") {
+            useMidAuth.value = false;
+            selectedApiBase.value = defaultApiBase;
+            return;
+          }
+          if (apiPrefixParam) {
+            selectedApiBase.value = normalizeBasePath(apiPrefixParam, defaultApiBase);
+            useMidAuth.value = selectedApiBase.value.startsWith(defaultMidAuthBase);
+            return;
+          }
+          const path = (location.pathname || "").replace(/\/+$/, "");
+          if (path.startsWith(defaultMidAuthBase)) {
+            useMidAuth.value = true;
+            selectedApiBase.value = defaultMidAuthBase;
+            return;
+          }
+          useMidAuth.value = false;
+          selectedApiBase.value = defaultApiBase;
+        }
+
+        initApiBase();
+
+        function apiUrl(path) {
+          const clean = String(path || "").replace(/^\/+/, "");
+          return `${selectedApiBase.value.replace(/\/+$/, "")}/${clean}`;
+        }
+
+        function wsUrl() {
+          const protocol = location.protocol === "https:" ? "wss" : "ws";
+          const path = useMidAuth.value ? `${defaultMidAuthBase}/ws/events` : "/ws/events";
+          return `${protocol}://${location.host}${path}?session_id=${encodeURIComponent(sessionId.value)}`;
+        }
+
+        function withAuth(options) {
+          const opts = options ? { ...options } : {};
+          if (useMidAuth.value && !opts.credentials) {
+            opts.credentials = "include";
+          }
+          return opts;
+        }
+
+        function normalizeOption(options, value, fallback) {
+          const v = value || fallback;
+          if (v && !options.includes(v)) options.push(v);
+          return v;
+        }
+
+        function persistSessionKeys() {
+          localStorage.setItem("virtmate_session_id", sessionId.value);
+          localStorage.setItem("virtmate_user_id", userId.value);
+          localStorage.setItem("virtmate_model_id", modelId.value);
+          localStorage.setItem("virtmate_conversation_id", conversationId.value);
+        }
+
+        async function loadSettings() {
+          const res = await fetch(
+            `${apiUrl("session/settings")}?session_id=${encodeURIComponent(sessionId.value)}`,
+            withAuth()
+          );
+          const data = await res.json();
+          Object.assign(settings, {
+            tts_engine: data.tts_engine ?? settings.tts_engine,
+            cam_permission: data.cam_permission ?? settings.cam_permission,
+            username: data.username ?? "",
+            mate_name: data.mate_name ?? "",
+            prompt: data.prompt ?? ""
+          });
+          settings.tts_engine = normalizeOption(ttsEngineOptions, settings.tts_engine, "云端edge-tts");
+        }
+
+        async function saveSettings() {
+          await fetch(apiUrl("session/settings"), withAuth({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: sessionId.value,
+              tts_engine: settings.tts_engine,
+              cam_permission: settings.cam_permission,
+              username: settings.username,
+              mate_name: settings.mate_name,
+              prompt: settings.prompt
+            })
+          }));
+        }
+
+        async function loadGlobalConfig() {
+          const res = await fetch(apiUrl("config/global"), withAuth());
+          const data = await res.json();
+          const ow = data.openwebui || {};
+          Object.assign(globalConfig, {
+            asr_engine: data.asr?.engine || "faster_whisper_cuda",
+            asr_model: data.asr?.model || "large-v3",
+            asr_device: data.asr?.device || "cuda",
+            asr_compute_type: data.asr?.compute_type || "float16",
+            asr_cuda_device_index: String(data.asr?.cuda_device_index ?? "0"),
+            asr_disable_auto_fallback: data.asr?.disable_auto_fallback ? "开启" : "关闭",
+            asr_sensitivity: data.asr?.sensitivity || "中",
+            asr_voiceprint_switch: data.asr?.voiceprint_switch || "关闭",
+            asr_voiceprint_threshold: String(data.asr?.voiceprint_threshold || "0.6"),
+            tts_local_host: data.tts?.local_host || "127.0.0.1",
+            tts_gpt_sovits_port: String(data.tts?.gpt_sovits_port || "9880"),
+            tts_cosyvoice_port: String(data.tts?.cosyvoice_port || "9881"),
+            tts_indextts_port: String(data.tts?.indextts_port || "9884"),
+            tts_voxcpm_port: String(data.tts?.voxcpm_port || "9885"),
+            tts_local_timeout_sec: String(data.tts?.local_timeout_sec || "180"),
+            tts_fallback_engine: data.tts?.fallback_engine || "云端edge-tts",
+            tts_default_engine: data.tts?.default_engine || "云端edge-tts"
+          });
+          globalConfig.asr_engine = normalizeOption(asrEngineOptions, globalConfig.asr_engine, "faster_whisper_cuda");
+          globalConfig.asr_model = normalizeOption(asrModelOptions, globalConfig.asr_model, "large-v3");
+          globalConfig.asr_device = normalizeOption(asrDeviceOptions, globalConfig.asr_device, "cuda");
+          globalConfig.asr_compute_type = normalizeOption(asrComputeTypeOptions, globalConfig.asr_compute_type, "float16");
+          globalConfig.asr_cuda_device_index = normalizeOption(
+            asrCudaDeviceIndexOptions,
+            globalConfig.asr_cuda_device_index,
+            "0"
+          );
+          globalConfig.asr_voiceprint_threshold = normalizeOption(voiceprintThresholdOptions, globalConfig.asr_voiceprint_threshold, "0.6");
+          globalConfig.tts_local_host = normalizeOption(localHostOptions, globalConfig.tts_local_host, "127.0.0.1");
+          globalConfig.tts_gpt_sovits_port = normalizeOption(gptSovitsPortOptions, globalConfig.tts_gpt_sovits_port, "9880");
+          globalConfig.tts_cosyvoice_port = normalizeOption(cosyVoicePortOptions, globalConfig.tts_cosyvoice_port, "9881");
+          globalConfig.tts_indextts_port = normalizeOption(indexTtsPortOptions, globalConfig.tts_indextts_port, "9884");
+          globalConfig.tts_voxcpm_port = normalizeOption(voxcpmPortOptions, globalConfig.tts_voxcpm_port, "9885");
+          globalConfig.tts_local_timeout_sec = normalizeOption(ttsTimeoutOptions, globalConfig.tts_local_timeout_sec, "180");
+          globalConfig.tts_fallback_engine = normalizeOption(ttsEngineOptions, globalConfig.tts_fallback_engine, "云端edge-tts");
+          globalConfig.tts_default_engine = normalizeOption(ttsEngineOptions, globalConfig.tts_default_engine, "云端edge-tts");
+          return ow;
+        }
+
+        async function saveGlobalConfig() {
+          const res = await fetch(apiUrl("config/global"), withAuth({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(globalConfig)
+          }));
+          const data = await res.json();
+          if (data.ok) await loadGlobalConfig();
+        }
+
+        async function loadRuntimeStatus() {
+          const res = await fetch(apiUrl("runtime/hardware"), withAuth());
+          const data = await res.json();
+          Object.assign(runtimeStatus, data || {});
+        }
+
+        function connectWs() {
+          if (ws.value) ws.value.close();
+          ws.value = new WebSocket(wsUrl());
+          ws.value.onopen = () => { wsState.value = "已连接"; };
+          ws.value.onclose = () => { wsState.value = "已断开"; };
+          ws.value.onmessage = (evt) => {
+            const payload = JSON.parse(evt.data);
+            if (payload.type === "chat.message") {
+              const msg = payload.data.message;
+              if (msg) messages.value.push(msg);
+              if (msg && msg.role === "assistant") streamingAssistant.value = "";
+            }
+            if (payload.type === "chat.delta") {
+              streamingAssistant.value = String(payload.data?.content || "");
+            }
+            if (payload.type === "chat.status") chatStatus.value = payload.data.status;
+            if (payload.type === "tts.ready" && payload.data.audio_url) {
+              playAudio(payload.data.audio_url);
+            }
+          };
+        }
+
+        async function sendChat() {
+          const text = textInput.value.trim();
+          if (!text) return;
+          const uid = userId.value.trim();
+          if (!useMidAuth.value && !uid) {
+            chatStatus.value = "请填写 user-id（与 Open WebUI 一致）";
+            return;
+          }
+          const mid = modelId.value.trim();
+          if (!mid) {
+            chatStatus.value = "请填写模型 ID";
+            return;
+          }
+          streamingAssistant.value = "";
+          textInput.value = "";
+          const body = {
+            session_id: sessionId.value,
+            text,
+            with_tts: true,
+            stream: true,
+            model: mid,
+            conversation_id: conversationId.value.trim() || null
+          };
+          const headers = { "Content-Type": "application/json" };
+          if (!useMidAuth.value && uid) {
+            headers["user-id"] = uid;
+          }
+          const res = await fetch(apiUrl("chat/send"), withAuth({
+            method: "POST",
+            headers,
+            body: JSON.stringify(body)
+          }));
+          const data = await res.json();
+          if (!res.ok) {
+            chatStatus.value = data.error || "发送失败";
+            return;
+          }
+          if (data.conversation_id) {
+            conversationId.value = data.conversation_id;
+            persistSessionKeys();
+          }
+          chatStatus.value = "done";
+        }
+
+        async function clearChat() {
+          messages.value = [];
+          conversationId.value = "";
+          persistSessionKeys();
+        }
+
+        function newConversation() {
+          conversationId.value = "";
+          persistSessionKeys();
+        }
+
+        function postPlaybackState(isPlaying, mouthY) {
+          const body = {
+            session_id: sessionId.value,
+            is_playing: !!isPlaying
+          };
+          if (typeof mouthY === "number") body.mouth_y = Math.max(0, Math.min(1, mouthY));
+          fetch(apiUrl("tts/playback"), withAuth({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          })).catch(() => {});
+        }
+
+        async function playAudio(url) {
+          const audio = new Audio(url);
+          let timer = null;
+          let ctx = null;
+          let analyser = null;
+          let source = null;
+
+          audio.onplay = async () => {
+            postPlaybackState(true, 0);
+            try {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (!AudioCtx) return;
+              ctx = new AudioCtx();
+              if (ctx.state !== "running") {
+                try {
+                  await ctx.resume();
+                } catch (_e) {}
+              }
+              source = ctx.createMediaElementSource(audio);
+              analyser = ctx.createAnalyser();
+              analyser.fftSize = 512;
+              analyser.smoothingTimeConstant = 0.6;
+              source.connect(analyser);
+              analyser.connect(ctx.destination);
+              const freq = new Uint8Array(analyser.frequencyBinCount);
+              timer = setInterval(() => {
+                if (!analyser) return;
+                analyser.getByteFrequencyData(freq);
+                let sum = 0;
+                for (let i = 2; i < freq.length; i++) {
+                  sum += freq[i];
+                }
+                const energy = (sum / Math.max(1, freq.length - 2)) / 255;
+                const y = Math.max(0, Math.min(1, (energy - 0.02) * 2.8));
+                postPlaybackState(true, y);
+              }, 80);
+            } catch (_e) {
+              // 分析器不可用时至少保持播放态，避免口型完全不动
+              postPlaybackState(true, 0.35);
+            }
+          };
+          audio.onended = async () => {
+            if (timer) clearInterval(timer);
+            timer = null;
+            try {
+              if (source) source.disconnect();
+            } catch (_e) {}
+            try {
+              if (analyser) analyser.disconnect();
+            } catch (_e) {}
+            try {
+              if (ctx) await ctx.close();
+            } catch (_e) {}
+            source = null;
+            analyser = null;
+            ctx = null;
+            postPlaybackState(false, 0);
+          };
+          await audio.play();
+        }
+
+        function ensureGetUserMedia() {
+          const hostRaw = (location.hostname || "").toLowerCase();
+          const host = hostRaw.replace(/\.$/, "");
+          const legacyLocal =
+            host === "localhost" ||
+            host === "127.0.0.1" ||
+            host === "[::1]" ||
+            host === "0.0.0.0" ||
+            host.endsWith(".localhost");
+          const secureContext =
+            typeof window.isSecureContext === "boolean"
+              ? window.isSecureContext
+              : location.protocol === "https:" || legacyLocal;
+          if (!secureContext) {
+            const port = location.port ? ":" + location.port : "";
+            return {
+              ok: false,
+              reason:
+                "浏览器安全策略：当前地址不是安全上下文。请用 http://localhost" + port + " 或 http://127.0.0.1" + port + " 打开，或配置 HTTPS。"
+            };
+          }
+          if (!navigator.mediaDevices) navigator.mediaDevices = {};
+          if (!navigator.mediaDevices.getUserMedia) {
+            const legacy =
+              navigator.getUserMedia ||
+              navigator.webkitGetUserMedia ||
+              navigator.mozGetUserMedia ||
+              navigator.msGetUserMedia;
+            if (legacy) {
+              navigator.mediaDevices.getUserMedia = function (constraints) {
+                return new Promise((resolve, reject) => {
+                  legacy.call(navigator, constraints, resolve, reject);
+                });
+              };
+            }
+          }
+          if (!navigator.mediaDevices.getUserMedia) {
+            return { ok: false, reason: "浏览器不支持麦克风接口。" };
+          }
+          return { ok: true };
+        }
+
+        async function startRecord() {
+          try {
+            const g = ensureGetUserMedia();
+            if (!g.ok) {
+              voiceStatus.value = g.reason;
+              return;
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const preferTypes = [
+              "audio/webm;codecs=opus",
+              "audio/ogg;codecs=opus",
+              "audio/webm",
+              "audio/ogg"
+            ];
+            const supported = preferTypes.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+            recorder.value = supported ? new MediaRecorder(stream, { mimeType: supported }) : new MediaRecorder(stream);
+            chunks.value = [];
+            recorder.value.ondataavailable = (e) => chunks.value.push(e.data);
+            recorder.value.onstop = async () => {
+              try {
+                const mime = recorder.value?.mimeType || "audio/webm";
+                const blob = new Blob(chunks.value, { type: mime });
+                const ext = mime.includes("ogg") ? "ogg" : (mime.includes("wav") ? "wav" : "webm");
+                const fd = new FormData();
+                fd.append("audio", blob, `voice.${ext}`);
+                fd.append("session_id", sessionId.value);
+                const res = await fetch(apiUrl("asr/recognize"), withAuth({ method: "POST", body: fd }));
+                const data = await res.json();
+                if (!res.ok) {
+                  voiceStatus.value = data.error || "语音识别失败";
+                  return;
+                }
+                if (data.text) {
+                  textInput.value = data.text;
+                  voiceStatus.value = "识别成功";
+                } else {
+                  voiceStatus.value = "未识别到文字";
+                }
+              } catch (e) {
+                voiceStatus.value = `上传或识别失败: ${e?.message || e}`;
+              }
+            };
+            recorder.value.start();
+            recording.value = true;
+            voiceStatus.value = "录音中...";
+          } catch (e) {
+            recording.value = false;
+            voiceStatus.value = `无法开始录音: ${e?.message || e}`;
+          }
+        }
+
+        function stopRecord() {
+          if (recorder.value && recording.value) {
+            recorder.value.stop();
+            recording.value = false;
+            voiceStatus.value = "录音已停止，识别中...";
+          }
+        }
+
+        onMounted(async () => {
+          const tabParam = (urlParams.get("tab") || "").trim().toLowerCase();
+          if (tabParam && tabs.some((t) => t.id === tabParam)) {
+            tab.value = tabParam;
+          }
+          persistSessionKeys();
+          await loadSettings();
+          await loadGlobalConfig();
+          await loadRuntimeStatus();
+          connectWs();
+        });
+
+        return {
+          tabs, tab, wsState, chatStatus, textInput, sessionId, userId, modelId, conversationId, useMidAuth,
+          messages, streamingAssistant, settings, globalConfig, runtimeStatus,
+          asrEngineOptions, asrModelOptions, asrDeviceOptions, asrComputeTypeOptions, asrCudaDeviceIndexOptions,
+          voiceprintThresholdOptions, localHostOptions, gptSovitsPortOptions,
+          cosyVoicePortOptions, indexTtsPortOptions, voxcpmPortOptions, ttsTimeoutOptions, ttsEngineOptions,
+          recording, voiceStatus, sceneType,
+          sendChat, clearChat, newConversation, startRecord, stopRecord,
+          saveSettings, loadSettings, persistSessionKeys, connectWs,
+          loadGlobalConfig, saveGlobalConfig, loadRuntimeStatus
+        };
+      },
+      template: `
+        <div class="topbar">
+          <div>
+            <div><strong>VirtMate C/S</strong> <span class="muted">（对话走 Open WebUI）</span></div>
+            <div class="muted">会话: {{ sessionId }} | WS: {{ wsState }} | 状态: {{ chatStatus }}</div>
+            <div class="muted" v-if="runtimeStatus.global?.openwebui">OW: {{ runtimeStatus.global.openwebui.base_url }} · header: {{ runtimeStatus.global.openwebui.user_id_header }}</div>
+          </div>
+          <div class="row" style="flex-direction:column;align-items:stretch;min-width:220px;">
+            <input v-model="sessionId" placeholder="session_id (WS)" @change="messages=[];persistSessionKeys();loadSettings();connectWs()" />
+            <input
+              v-model="userId"
+              :disabled="useMidAuth"
+              :placeholder="useMidAuth ? 'mid-auth 模式下由会话自动映射 user-id' : 'user-id (透传 OW)'"
+              @change="persistSessionKeys()"
+            />
+            <input v-model="modelId" placeholder="Open WebUI 模型 ID" @change="persistSessionKeys()" />
+            <input v-model="conversationId" placeholder="conversation_id（可空=新会话）" @change="persistSessionKeys()" />
+          </div>
+        </div>
+        <div class="tabs" style="margin-bottom:12px;">
+          <button v-for="t in tabs" :key="t.id" class="tab" :class="{active:tab===t.id}" @click="tab=t.id">{{ t.label }}</button>
+        </div>
+        <div class="panel" v-if="tab==='chat'">
+          <div id="chatList" class="chat-list">
+            <div v-for="(m,idx) in messages" :key="idx" class="chat-item" :class="m.role==='user' ? 'user' : 'assistant'">
+              <strong>{{ m.role }}</strong> <span class="muted">({{ m.created_at }})</span>
+              <div>{{ m.content }}</div>
+            </div>
+            <div v-if="streamingAssistant" class="chat-item assistant">
+              <strong>assistant</strong> <span class="muted">(streaming)</span>
+              <div>{{ streamingAssistant }}</div>
+            </div>
+          </div>
+          <div class="row">
+            <input class="grow" v-model="textInput" @keydown.enter="sendChat" placeholder="输入消息..." />
+            <button class="primary" @click="sendChat">发送</button>
+            <button @click="clearChat">清空本地记录</button>
+            <button @click="newConversation">新开 OW 会话</button>
+          </div>
+        </div>
+        <div class="panel" v-else-if="tab==='voice'">
+          <div class="row">
+            <button class="primary" @click="startRecord" :disabled="recording">开始录音</button>
+            <button @click="stopRecord" :disabled="!recording">停止并识别</button>
+          </div>
+          <div class="muted" style="margin-top:8px;">{{ voiceStatus }}</div>
+          <div class="row">
+            <input class="grow" v-model="textInput" placeholder="识别结果" />
+            <button class="primary" @click="sendChat">发送</button>
+          </div>
+        </div>
+        <div class="panel" v-else-if="tab==='scene'">
+          <div class="row" style="margin-bottom:8px;">
+            <select v-model="sceneType">
+              <option value="live2d">Live2D</option>
+              <option value="mmd">MMD</option>
+              <option value="mmd/vmd">MMD动作</option>
+              <option value="vrm">VRM</option>
+            </select>
+          </div>
+          <iframe :src="'/scene/' + sceneType + '?session_id=' + encodeURIComponent(sessionId)"></iframe>
+        </div>
+        <div class="panel" v-else>
+          <div class="grid2">
+            <div>
+              <div class="row"><label style="width:140px;">语音引擎</label><select class="grow" v-model="settings.tts_engine"><option v-for="v in ttsEngineOptions" :key="'tts-'+v" :value="v">{{ v }}</option></select></div>
+              <div class="row"><label style="width:140px;">摄像头权限</label><select class="grow" v-model="settings.cam_permission"><option>开启</option><option>关闭</option></select></div>
+              <div class="row"><label style="width:140px;">用户名</label><input class="grow" v-model="settings.username" placeholder="称呼" /></div>
+              <div class="row"><label style="width:140px;">伙伴名称</label><input class="grow" v-model="settings.mate_name" /></div>
+              <div class="row"><label style="width:140px;">人设 system</label><textarea class="grow" v-model="settings.prompt" rows="3" placeholder="可选，作为发给 OW 的 system 提示"></textarea></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button class="primary" @click="saveSettings">保存会话设置</button>
+            <button @click="loadSettings">重新加载</button>
+          </div>
+          <hr style="border-color:#243044;margin:12px 0;" />
+          <div class="row"><strong>全局 ASR / TTS</strong></div>
+          <div class="row"><label style="width:140px;">ASR引擎</label><select class="grow" v-model="globalConfig.asr_engine"><option v-for="v in asrEngineOptions" :key="'asr-eng-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">ASR模型</label><select class="grow" v-model="globalConfig.asr_model"><option v-for="v in asrModelOptions" :key="'asr-model-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">ASR设备</label><select class="grow" v-model="globalConfig.asr_device"><option v-for="v in asrDeviceOptions" :key="'asr-dev-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">ASR精度</label><select class="grow" v-model="globalConfig.asr_compute_type"><option v-for="v in asrComputeTypeOptions" :key="'asr-ct-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">ASR GPU序号</label><select class="grow" v-model="globalConfig.asr_cuda_device_index"><option v-for="v in asrCudaDeviceIndexOptions" :key="'asr-cuda-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">禁用ASR回退</label><select class="grow" v-model="globalConfig.asr_disable_auto_fallback"><option value="关闭">关闭（允许自动回退）</option><option value="开启">开启（禁止自动回退）</option></select></div>
+          <div class="row"><label style="width:140px;">识别灵敏度</label><select class="grow" v-model="globalConfig.asr_sensitivity"><option>高</option><option>中</option><option>低</option></select></div>
+          <div class="row"><label style="width:140px;">声纹识别</label><select class="grow" v-model="globalConfig.asr_voiceprint_switch"><option>开启</option><option>关闭</option></select></div>
+          <div class="row"><label style="width:140px;">声纹阈值</label><select class="grow" v-model="globalConfig.asr_voiceprint_threshold"><option v-for="v in voiceprintThresholdOptions" :key="'asr-th-'+v" :value="v">{{ v }}</option></select></div>
+          <hr style="border-color:#243044;margin:12px 0;" />
+          <div class="row"><label style="width:140px;">本地TTS主机</label><select class="grow" v-model="globalConfig.tts_local_host"><option v-for="v in localHostOptions" :key="'host-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">GPT-SoVITS端口</label><select class="grow" v-model="globalConfig.tts_gpt_sovits_port"><option v-for="v in gptSovitsPortOptions" :key="'gpt-port-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">CosyVoice端口</label><select class="grow" v-model="globalConfig.tts_cosyvoice_port"><option v-for="v in cosyVoicePortOptions" :key="'cosy-port-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">Index-TTS端口</label><select class="grow" v-model="globalConfig.tts_indextts_port"><option v-for="v in indexTtsPortOptions" :key="'index-port-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">VoxCPM端口</label><select class="grow" v-model="globalConfig.tts_voxcpm_port"><option v-for="v in voxcpmPortOptions" :key="'vox-port-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">本地TTS超时秒</label><select class="grow" v-model="globalConfig.tts_local_timeout_sec"><option v-for="v in ttsTimeoutOptions" :key="'tts-timeout-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">失败回退引擎</label><select class="grow" v-model="globalConfig.tts_fallback_engine"><option v-for="v in ttsEngineOptions" :key="'tts-fallback-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row"><label style="width:140px;">默认TTS引擎</label><select class="grow" v-model="globalConfig.tts_default_engine"><option v-for="v in ttsEngineOptions" :key="'tts-default-'+v" :value="v">{{ v }}</option></select></div>
+          <div class="row" style="margin-top:8px;">
+            <button class="primary" @click="saveGlobalConfig">保存全局默认</button>
+          </div>
+          <hr style="border-color:#243044;margin:12px 0;" />
+          <div class="row"><strong>运行时硬件</strong><button @click="loadRuntimeStatus">刷新</button></div>
+          <div class="muted">CUDA可用: {{ runtimeStatus.gpu?.cuda_available }} | GPU: {{ runtimeStatus.gpu?.name }}</div>
+          <div class="muted">ASR: {{ runtimeStatus.asr?.engine }} | 实际设备: {{ runtimeStatus.asr?.actual_device || runtimeStatus.asr?.device }}</div>
+        </div>
+      `
+    }).mount("#app");
+  </script>
+</body>
+</html>
