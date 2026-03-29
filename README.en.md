@@ -38,7 +38,7 @@ Use this root README for navigation and the subdirectory READMEs for implementat
 ### Clone
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/untitled-usr/hackmit-eunoia.git
 cd hackmit-eunoia
 ```
 
