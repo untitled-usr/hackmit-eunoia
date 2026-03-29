@@ -38,7 +38,7 @@ English version: `README.en.md`
 ### 克隆仓库
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/untitled-usr/hackmit-eunoia.git
 cd hackmit-eunoia
 ```
 
